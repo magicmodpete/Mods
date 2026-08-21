@@ -1,0 +1,12 @@
+﻿<embarkmodules>
+    <module Class="XRL.CharacterBuilds.Qud.QudPregenModule">
+        <pregens>
+            <pregen Name="TODO:Name" Genotype="TODO:Genotype" Tile="TODO:Tile" Foreground="TODO:Foreground" Detail="TODO:Detail" Background="k">
+                <code>TODO:code</code>
+                <description>
+                    TODO:description
+                </description>
+            </pregen>
+        </pregens>
+    </module>
+</embarkmodules>

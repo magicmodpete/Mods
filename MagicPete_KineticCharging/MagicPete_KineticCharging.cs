@@ -34,6 +34,32 @@ namespace XRL.World.Parts.Mutation
                    $"Range Bonus: +{Level}";
         }
 
+        public override bool WantEvent(int ID, int cascade)
+        {
+            return base.WantEvent(ID, cascade)
+                || ID == CommandEvent.ID;
+        }
+
+        public override bool HandleEvent(CommandEvent E)
+        {
+            if (E.Command == "CommandKineticThrow")
+            {
+                HandleKineticThrow();
+                return false;
+            }
+            if (E.Command == "CommandKineticBomb")
+            {
+                HandleKineticBomb();
+                return false;
+            }
+            if (E.Command == "CommandToggleKineticWeapon")
+            {
+                ToggleKineticWeapon();
+                return false;
+            }
+            return base.HandleEvent(E);
+        }
+
         public override bool Mutate(GameObject GO, int Level)
         {
             KineticThrowAbilityID = AddMyActivatedAbility(
@@ -76,32 +102,30 @@ namespace XRL.World.Parts.Mutation
 
         public override void Register(GameObject Object, IEventRegistrar Registrar)
         {
-            Registrar.Register("CommandKineticThrow");
-            Registrar.Register("CommandKineticBomb");
-            Registrar.Register("CommandToggleKineticWeapon");
             Registrar.Register("GetMeleeWeaponDamage");
+            Registrar.Register("AIGetOffensiveMutationList");
             base.Register(Object, Registrar);
         }
 
         public override bool FireEvent(Event E)
         {
-            if (E.ID == "CommandKineticThrow")
-            {
-                return HandleKineticThrow();
-            }
-            else if (E.ID == "CommandKineticBomb")
-            {
-                return HandleKineticBomb();
-            }
-            else if (E.ID == "CommandToggleKineticWeapon")
-            {
-                ToggleKineticWeapon();
-            }
-            else if (E.ID == "GetMeleeWeaponDamage")
+            if (E.ID == "GetMeleeWeaponDamage")
             {
                 if (IsKineticWeaponActive())
                 {
                     E.SetParameter("Bonus", E.GetIntParameter("Bonus") + Level);
+                }
+            }
+            else if (E.ID == "AIGetOffensiveMutationList")
+            {
+                int distance = E.GetIntParameter("Distance");
+                if (distance <= Level + 10 && IsMyActivatedAbilityUsable(KineticThrowAbilityID))
+                {
+                    List<string> list = E.GetParameter("List") as List<string>;
+                    if (list != null && !list.Contains("CommandKineticThrow"))
+                    {
+                        list.Add("CommandKineticThrow");
+                    }
                 }
             }
             return base.FireEvent(E);
@@ -134,14 +158,17 @@ namespace XRL.World.Parts.Mutation
 
             Cell targetCell = targetCells[targetCells.Count - 1];
             
+            // Remove one item from stack to prevent charging the entire stack
+            GameObject itemToThrow = item.RemoveOne();
+
             // Apply kinetic charge to item
-            item.AddPart(new MagicPete_KineticChargedItem(Level, body));
+            itemToThrow.AddPart(new MagicPete_KineticChargedItem(Level, body));
             
             // Perform throw
-            body.PerformThrow(item, targetCell);
+            body.PerformThrow(itemToThrow, targetCell);
             
             CooldownMyActivatedAbility(KineticThrowAbilityID, 10);
-            body.UseEnergy(1000, "Mutation");
+            body.UseEnergy(1000, "Mutation Mental Kinetic Charging");
             
             return true;
         }
@@ -157,7 +184,7 @@ namespace XRL.World.Parts.Mutation
             GameObject target = null;
             foreach (var obj in cell.GetObjects())
             {
-                if (obj.HasPart("Furniture") || obj.HasPart("Wall") || (obj.Blueprint != null && (obj.Blueprint.Contains("Wall") || obj.Blueprint.Contains("Furniture"))))
+                if (obj.HasPart("Furniture") || obj.HasPart("Wall") || obj.HasPart("Door") || obj.HasTag("Wall") || obj.HasTag("Furniture") || (obj.Blueprint != null && (obj.Blueprint.Contains("Wall") || obj.Blueprint.Contains("Furniture"))))
                 {
                     target = obj;
                     break;
@@ -166,15 +193,22 @@ namespace XRL.World.Parts.Mutation
 
             if (target == null)
             {
-                Popup.Show("You must target furniture or a wall.");
+                AddPlayerMessage("No suitable target found for Kinetic Bomb.");
                 return false;
             }
 
-            target.AddPart(new MagicPete_KineticExplosion(Level, body));
-            Popup.Show($"{target.The}{target.DisplayNameOnly} begins to vibrate violently!");
-            
+            if (target.HasPart(typeof(MagicPete_KineticExplosion)) || target.HasPart("MagicPete_KineticExplosion"))
+            {
+                AddPlayerMessage($"{target.The}{target.DisplayNameOnly} is already kinetically charged!");
+                return false;
+            }
+
+            MagicPete_KineticExplosion explosion = new MagicPete_KineticExplosion(Level, body);
+            target.AddPart(explosion);
+            target.ParticleText($"[:{explosion.Timer}:]", 'Y');
+            AddPlayerMessage($"{target.The}{target.DisplayNameOnly} begins to vibrate violently.");
             CooldownMyActivatedAbility(KineticBombAbilityID, 20);
-            body.UseEnergy(1000, "Mutation");
+            body.UseEnergy(1000, "Mutation Mental Kinetic Charging");
 
             return true;
         }
@@ -183,7 +217,7 @@ namespace XRL.World.Parts.Mutation
     [Serializable]
     public class MagicPete_KineticChargedItem : IPart
     {
-        public int Level;
+        public int Level = 1;
         public GameObject Creator;
 
         public MagicPete_KineticChargedItem()
@@ -194,6 +228,28 @@ namespace XRL.World.Parts.Mutation
         {
             Level = level;
             Creator = creator;
+        }
+
+        public override bool WantEvent(int ID, int cascade)
+        {
+            return base.WantEvent(ID, cascade)
+                || ID == GetDisplayNameEvent.ID
+                || ID == GetShortDescriptionEvent.ID;
+        }
+
+        public override bool HandleEvent(GetDisplayNameEvent E)
+        {
+            if (E.Understood())
+            {
+                E.AddTag("{{M|[kinetically charged]}}");
+            }
+            return base.HandleEvent(E);
+        }
+
+        public override bool HandleEvent(GetShortDescriptionEvent E)
+        {
+            E.Postfix.Append("\n{{M|It crackles with volatile kinetic energy and will explode upon impact.}}");
+            return base.HandleEvent(E);
         }
 
         public override void Register(GameObject Object, IEventRegistrar Registrar)
@@ -207,7 +263,10 @@ namespace XRL.World.Parts.Mutation
             if (E.ID == "ProjectileHit")
             {
                 Explode();
-                ParentObject.Destroy();
+                if (GameObject.Validate(ParentObject))
+                {
+                    ParentObject.Destroy();
+                }
                 return false;
             }
             return base.FireEvent(E);
@@ -215,9 +274,11 @@ namespace XRL.World.Parts.Mutation
 
         private void Explode()
         {
-            if (ParentObject != null)
+            if (GameObject.Validate(ParentObject))
             {
-                ParentObject.Explode(Force: 10000, Owner: Creator, BonusDamage: $"{Level}d6+{Level}");
+                GameObject obj = ParentObject;
+                obj.RemovePart(this);
+                obj.Explode(Force: 0, Owner: Creator, BonusDamage: $"{Level}d6+{Level}");
             }
         }
     }
@@ -225,45 +286,86 @@ namespace XRL.World.Parts.Mutation
     [Serializable]
     public class MagicPete_KineticExplosion : IPart
     {
-        public int Level;
+        public int Level = 1;
         public int Timer = 3;
         public GameObject Creator;
 
+        [NonSerialized]
+        private long lastTickTurn = -1;
+
         public MagicPete_KineticExplosion()
         {
+            lastTickTurn = The.Game != null ? The.Game.Turns : -1;
         }
 
         public MagicPete_KineticExplosion(int level, GameObject creator)
         {
             Level = level;
             Creator = creator;
+            lastTickTurn = The.Game != null ? The.Game.Turns : -1;
         }
 
-        public override void Register(GameObject Object, IEventRegistrar Registrar)
+        public override bool WantEvent(int ID, int cascade)
         {
-            Registrar.Register("EndTurn");
-            base.Register(Object, Registrar);
+            return base.WantEvent(ID, cascade)
+                || ID == EndTurnEvent.ID
+                || ID == GetDisplayNameEvent.ID
+                || ID == GetShortDescriptionEvent.ID;
         }
 
-        public override bool FireEvent(Event E)
+        public override bool HandleEvent(EndTurnEvent E)
         {
-            if (E.ID == "EndTurn")
+            Tick();
+            return base.HandleEvent(E);
+        }
+
+        public override bool HandleEvent(GetDisplayNameEvent E)
+        {
+            if (E.Understood())
             {
-                Timer--;
-                if (Timer <= 0)
-                {
-                    Explode();
-                }
+                E.AddTag($"{{R|[vibrating: {Timer}t]}}");
             }
-            return base.FireEvent(E);
+            return base.HandleEvent(E);
+        }
+
+        public override bool HandleEvent(GetShortDescriptionEvent E)
+        {
+            E.Postfix.Append($"\n{{R|It vibrates violently with unstable kinetic energy ({Timer} turns remaining until detonation)!}}");
+            return base.HandleEvent(E);
+        }
+
+        public void Tick()
+        {
+            long currentTurn = The.Game != null ? The.Game.Turns : -1;
+            if (currentTurn != -1 && currentTurn == lastTickTurn)
+            {
+                return;
+            }
+            lastTickTurn = currentTurn;
+
+            Timer--;
+            if (Timer > 0 && GameObject.Validate(ParentObject) && ParentObject.CurrentCell != null)
+            {
+                ParentObject.ParticleText($"[:{Timer}:]", 'Y');
+                AddPlayerMessage($"{ParentObject.The}{ParentObject.DisplayNameOnly} will detonate in {Timer} {(Timer == 1 ? "turn" : "turns")}.");
+            }
+            if (Timer <= 0)
+            {
+                Explode();
+            }
         }
 
         private void Explode()
         {
-            if (ParentObject != null)
+            if (GameObject.Validate(ParentObject))
             {
-                ParentObject.Explode(Force: 10000, Owner: Creator, BonusDamage: $"{Level + 2}d8+{Level}");
-                ParentObject.Destroy();
+                GameObject obj = ParentObject;
+                obj.RemovePart(this);
+                obj.Explode(Force: 0, Owner: Creator, BonusDamage: $"{Level + 2}d8+{Level}");
+                if (GameObject.Validate(obj))
+                {
+                    obj.Destroy();
+                }
             }
         }
     }
