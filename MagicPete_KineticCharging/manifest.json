@@ -1,7 +1,7 @@
 ﻿{
   "id": "MagicPete_KineticCharging",
   "title": "Kinetic Charging",
-  "description": "New mutation Kinetic Charging.",
+  "description": "New mental mutation Kinetic Charging!\\n\\nKinetic Throw: Charge throwable items to detonate on impact for explosive area damage.\\n\\nKinetic Bomb\\n  Infuse adjacent furniture or walls with kinetic energy that detonates after a 3-turn delay.\\n\\nKinetic Weapon\\n  A toggleable ability adding a melee damage bonus scaled by mutation level.",
   "version": "0.0.4",
   "author": "MagicPete",
   "tags": "mutation",

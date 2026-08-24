@@ -162,10 +162,17 @@ namespace XRL.World.Parts.Mutation
             GameObject itemToThrow = item.RemoveOne();
 
             // Apply kinetic charge to item
-            itemToThrow.AddPart(new MagicPete_KineticChargedItem(Level, body));
+            MagicPete_KineticChargedItem chargedPart = new MagicPete_KineticChargedItem(Level, body);
+            itemToThrow.AddPart(chargedPart);
             
             // Perform throw
             body.PerformThrow(itemToThrow, targetCell);
+
+            // Ensure the thrown item detonates and disappears upon landing/throwing
+            if (GameObject.Validate(itemToThrow))
+            {
+                chargedPart.Explode();
+            }
             
             CooldownMyActivatedAbility(KineticThrowAbilityID, 10);
             body.UseEnergy(1000, "Mutation Mental Kinetic Charging");
@@ -219,6 +226,7 @@ namespace XRL.World.Parts.Mutation
     {
         public int Level = 1;
         public GameObject Creator;
+        private bool isExploding = false;
 
         public MagicPete_KineticChargedItem()
         {
@@ -234,7 +242,14 @@ namespace XRL.World.Parts.Mutation
         {
             return base.WantEvent(ID, cascade)
                 || ID == GetDisplayNameEvent.ID
-                || ID == GetShortDescriptionEvent.ID;
+                || ID == GetShortDescriptionEvent.ID
+                || ID == EnteredCellEvent.ID;
+        }
+
+        public override bool HandleEvent(EnteredCellEvent E)
+        {
+            Explode();
+            return base.HandleEvent(E);
         }
 
         public override bool HandleEvent(GetDisplayNameEvent E)
@@ -255,30 +270,38 @@ namespace XRL.World.Parts.Mutation
         public override void Register(GameObject Object, IEventRegistrar Registrar)
         {
             Registrar.Register("ProjectileHit");
+            Registrar.Register("MissileHit");
+            Registrar.Register("WeaponHit");
+            Registrar.Register("EnteredCell");
+            Registrar.Register("AttackerDealingDamage");
+            Registrar.Register("AttackerAfterAttack");
             base.Register(Object, Registrar);
         }
 
         public override bool FireEvent(Event E)
         {
-            if (E.ID == "ProjectileHit")
+            if (E.ID == "ProjectileHit" || E.ID == "MissileHit" || E.ID == "WeaponHit" || E.ID == "EnteredCell" || E.ID == "AttackerDealingDamage" || E.ID == "AttackerAfterAttack")
             {
                 Explode();
-                if (GameObject.Validate(ParentObject))
-                {
-                    ParentObject.Destroy();
-                }
                 return false;
             }
             return base.FireEvent(E);
         }
 
-        private void Explode()
+        public void Explode()
         {
+            if (isExploding) return;
+            isExploding = true;
+
             if (GameObject.Validate(ParentObject))
             {
                 GameObject obj = ParentObject;
                 obj.RemovePart(this);
                 obj.Explode(Force: 0, Owner: Creator, BonusDamage: $"{Level}d6+{Level}");
+                if (GameObject.Validate(obj))
+                {
+                    obj.Destroy();
+                }
             }
         }
     }
@@ -305,15 +328,44 @@ namespace XRL.World.Parts.Mutation
             lastTickTurn = The.Game != null ? The.Game.Turns : -1;
         }
 
+        public override bool WantTurnTick() => true;
+
+        public override void TurnTick(long TimeTick, int Amount = 1)
+        {
+            Tick();
+        }
+
         public override bool WantEvent(int ID, int cascade)
         {
             return base.WantEvent(ID, cascade)
                 || ID == EndTurnEvent.ID
+                || ID == EndActionEvent.ID
                 || ID == GetDisplayNameEvent.ID
                 || ID == GetShortDescriptionEvent.ID;
         }
 
+        public override bool Render(RenderEvent E)
+        {
+            if (Timer <= 1)
+            {
+                E.ColorString = "&R";
+                E.DetailColor = "R";
+            }
+            else
+            {
+                E.ColorString = "&M";
+                E.DetailColor = "M";
+            }
+            return true;
+        }
+
         public override bool HandleEvent(EndTurnEvent E)
+        {
+            Tick();
+            return base.HandleEvent(E);
+        }
+
+        public override bool HandleEvent(EndActionEvent E)
         {
             Tick();
             return base.HandleEvent(E);
@@ -332,6 +384,26 @@ namespace XRL.World.Parts.Mutation
         {
             E.Postfix.Append($"\n{{R|It vibrates violently with unstable kinetic energy ({Timer} turns remaining until detonation)!}}");
             return base.HandleEvent(E);
+        }
+
+        public override void Register(GameObject Object, IEventRegistrar Registrar)
+        {
+            Registrar.Register("TurnTick");
+            Registrar.Register("GeneralAITurn");
+            Registrar.Register("EndTurn");
+            Registrar.Register("EndAction");
+            Registrar.Register("Render");
+            base.Register(Object, Registrar);
+        }
+
+        public override bool FireEvent(Event E)
+        {
+            if (E.ID == "TurnTick" || E.ID == "GeneralAITurn" || E.ID == "EndTurn" || E.ID == "EndAction")
+            {
+                Tick();
+                return true;
+            }
+            return base.FireEvent(E);
         }
 
         public void Tick()
