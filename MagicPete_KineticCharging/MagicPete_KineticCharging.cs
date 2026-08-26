@@ -37,7 +37,17 @@ namespace XRL.World.Parts.Mutation
         public override bool WantEvent(int ID, int cascade)
         {
             return base.WantEvent(ID, cascade)
-                || ID == CommandEvent.ID;
+                || ID == CommandEvent.ID
+                || ID == AttackerDealingDamageEvent.ID;
+        }
+
+        public override bool HandleEvent(AttackerDealingDamageEvent E)
+        {
+            if (IsKineticWeaponActive() && E.Damage != null)
+            {
+                E.Damage.AddAttribute("Energy");
+            }
+            return base.HandleEvent(E);
         }
 
         public override bool HandleEvent(CommandEvent E)
@@ -103,6 +113,7 @@ namespace XRL.World.Parts.Mutation
         public override void Register(GameObject Object, IEventRegistrar Registrar)
         {
             Registrar.Register("GetMeleeWeaponDamage");
+            Registrar.Register("AttackerDealingDamage");
             Registrar.Register("AIGetOffensiveMutationList");
             base.Register(Object, Registrar);
         }
@@ -114,6 +125,26 @@ namespace XRL.World.Parts.Mutation
                 if (IsKineticWeaponActive())
                 {
                     E.SetParameter("Bonus", E.GetIntParameter("Bonus") + Level);
+                    string attributes = E.GetStringParameter("Attributes");
+                    if (string.IsNullOrEmpty(attributes))
+                    {
+                        E.SetParameter("Attributes", "Energy");
+                    }
+                    else if (!attributes.Contains("Energy"))
+                    {
+                        E.SetParameter("Attributes", attributes + ",Energy");
+                    }
+                }
+            }
+            else if (E.ID == "AttackerDealingDamage")
+            {
+                if (IsKineticWeaponActive())
+                {
+                    Damage damage = E.GetParameter("Damage") as Damage;
+                    if (damage != null)
+                    {
+                        damage.AddAttribute("Energy");
+                    }
                 }
             }
             else if (E.ID == "AIGetOffensiveMutationList")
@@ -243,7 +274,17 @@ namespace XRL.World.Parts.Mutation
             return base.WantEvent(ID, cascade)
                 || ID == GetDisplayNameEvent.ID
                 || ID == GetShortDescriptionEvent.ID
-                || ID == EnteredCellEvent.ID;
+                || ID == EnteredCellEvent.ID
+                || ID == AttackerDealingDamageEvent.ID;
+        }
+
+        public override bool HandleEvent(AttackerDealingDamageEvent E)
+        {
+            if (E.Damage != null)
+            {
+                E.Damage.AddAttribute("Energy");
+            }
+            return base.HandleEvent(E);
         }
 
         public override bool HandleEvent(EnteredCellEvent E)
@@ -274,16 +315,25 @@ namespace XRL.World.Parts.Mutation
             Registrar.Register("WeaponHit");
             Registrar.Register("EnteredCell");
             Registrar.Register("AttackerDealingDamage");
+            Registrar.Register("DealDamage");
             Registrar.Register("AttackerAfterAttack");
             base.Register(Object, Registrar);
         }
 
         public override bool FireEvent(Event E)
         {
-            if (E.ID == "ProjectileHit" || E.ID == "MissileHit" || E.ID == "WeaponHit" || E.ID == "EnteredCell" || E.ID == "AttackerDealingDamage" || E.ID == "AttackerAfterAttack")
+            if (E.ID == "ProjectileHit" || E.ID == "MissileHit" || E.ID == "WeaponHit" || E.ID == "EnteredCell" || E.ID == "AttackerAfterAttack")
             {
                 Explode();
                 return false;
+            }
+            else if (E.ID == "AttackerDealingDamage" || E.ID == "DealDamage")
+            {
+                Damage damage = E.GetParameter("Damage") as Damage;
+                if (damage != null)
+                {
+                    damage.AddAttribute("Energy");
+                }
             }
             return base.FireEvent(E);
         }
@@ -296,10 +346,10 @@ namespace XRL.World.Parts.Mutation
             if (GameObject.Validate(ParentObject))
             {
                 GameObject obj = ParentObject;
-                obj.RemovePart(this);
                 obj.Explode(Force: 0, Owner: Creator, BonusDamage: $"{Level}d6+{Level}");
                 if (GameObject.Validate(obj))
                 {
+                    obj.RemovePart(this);
                     obj.Destroy();
                 }
             }
@@ -341,7 +391,17 @@ namespace XRL.World.Parts.Mutation
                 || ID == EndTurnEvent.ID
                 || ID == EndActionEvent.ID
                 || ID == GetDisplayNameEvent.ID
-                || ID == GetShortDescriptionEvent.ID;
+                || ID == GetShortDescriptionEvent.ID
+                || ID == AttackerDealingDamageEvent.ID;
+        }
+
+        public override bool HandleEvent(AttackerDealingDamageEvent E)
+        {
+            if (E.Damage != null)
+            {
+                E.Damage.AddAttribute("Energy");
+            }
+            return base.HandleEvent(E);
         }
 
         public override bool Render(RenderEvent E)
@@ -392,6 +452,8 @@ namespace XRL.World.Parts.Mutation
             Registrar.Register("GeneralAITurn");
             Registrar.Register("EndTurn");
             Registrar.Register("EndAction");
+            Registrar.Register("AttackerDealingDamage");
+            Registrar.Register("DealDamage");
             Registrar.Register("Render");
             base.Register(Object, Registrar);
         }
@@ -402,6 +464,14 @@ namespace XRL.World.Parts.Mutation
             {
                 Tick();
                 return true;
+            }
+            else if (E.ID == "AttackerDealingDamage" || E.ID == "DealDamage")
+            {
+                Damage damage = E.GetParameter("Damage") as Damage;
+                if (damage != null)
+                {
+                    damage.AddAttribute("Energy");
+                }
             }
             return base.FireEvent(E);
         }
@@ -432,10 +502,10 @@ namespace XRL.World.Parts.Mutation
             if (GameObject.Validate(ParentObject))
             {
                 GameObject obj = ParentObject;
-                obj.RemovePart(this);
                 obj.Explode(Force: 0, Owner: Creator, BonusDamage: $"{Level + 2}d8+{Level}");
                 if (GameObject.Validate(obj))
                 {
+                    obj.RemovePart(this);
                     obj.Destroy();
                 }
             }
