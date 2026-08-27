@@ -78,7 +78,7 @@ namespace XRL.World.Parts.Mutation
                 Class: "Mental Mutation",
                 Description: "Charge a throwable item and hurl it with explosive force.",
                 Icon: "T",
-                UITileDefault: Renderable.UITile("kineticthrow.png", 'w', 'M')
+                UITileDefault: Renderable.UITile("UI/kineticthrow.png", 'w', 'M')
             );
             KineticBombAbilityID = AddMyActivatedAbility(
                 Name: "Kinetic Bomb",
@@ -86,7 +86,7 @@ namespace XRL.World.Parts.Mutation
                 Class: "Mental Mutation",
                 Description: "Charge a piece of furniture or a wall to explode after 3 turns.",
                 Icon: "C",
-                UITileDefault: Renderable.UITile("kineticcharge.png", 'w', 'M')
+                UITileDefault: Renderable.UITile("UI/kineticcharge.png", 'w', 'M')
             );
             KineticWeaponAbilityID = AddMyActivatedAbility(
                 Name: "Kinetic Weapon",
@@ -97,7 +97,7 @@ namespace XRL.World.Parts.Mutation
                 Toggleable: true,
                 DefaultToggleState: true,
                 ActiveToggle: true,
-                UITileDefault: Renderable.UITile("kineticweapon.png", 'w', 'M')
+                UITileDefault: Renderable.UITile("UI/kineticweapon.png", 'w', 'M')
             );
             return base.Mutate(GO, Level);
         }
@@ -463,6 +463,7 @@ namespace XRL.World.Parts.Mutation
             if (E.ID == "TurnTick" || E.ID == "GeneralAITurn" || E.ID == "EndTurn" || E.ID == "EndAction")
             {
                 Tick();
+                XRL.Messages.MessageQueue.AddPlayerMessage("Hello world! 466");
                 return true;
             }
             else if (E.ID == "AttackerDealingDamage" || E.ID == "DealDamage")

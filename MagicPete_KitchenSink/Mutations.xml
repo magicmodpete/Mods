@@ -1,0 +1,6 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<mutations>
+    <category Name="Mental">
+        <mutation Name="Kinetic Charging" Cost="4" MaxSelected="1" Class="MagicPete_KineticCharging" BearerDescription="those who manipulate kinetic energy" Code="pkc" Tile="kineticchargemutation.png" />
+    </category>
+</mutations>
